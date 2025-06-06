@@ -1,316 +1,205 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Jump & Slide RGB</title>
+    <title>Physik-Basiertes Hindernis-Spiel</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            background: #f0f0f0;
             font-family: Arial, sans-serif;
         }
-        canvas {
+        #gameCanvas {
             display: block;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background: #87CEEB; /* Himmelblau */
         }
-        #ui {
+        #score {
             position: absolute;
             top: 10px;
             left: 10px;
+            font-size: 24px;
             color: white;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
-        #restart {
+        #gameOver {
             position: absolute;
-            bottom: 20px;
-            padding: 10px 20px;
-            font-size: 18px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: red;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
             display: none;
         }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h1>Jump & Slide RGB</h1>
-        <p id="score">Score: 0</p>
-    </div>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
-    <button id="restart">Neustart (R)</button>
-
+    <div id="score">Score: 0</div>
+    <div id="gameOver">Game Over!</div>
+    <canvas id="gameCanvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
     <script>
-        // Canvas setup
+        // Matter.js Setup
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              Runner = Matter.Runner,
+              Bodies = Matter.Bodies,
+              Composite = Matter.Composite,
+              Events = Matter.Events;
+
+        // Engine erstellen
+        const engine = Engine.create();
+        const world = engine.world;
+
+        // Canvas & Renderer
         const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
-        const restartButton = document.getElementById('restart');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const render = Render.create({
+            canvas: canvas,
+            engine: engine,
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                wireframes: false,
+                background: '#87CEEB'
+            }
+        });
 
-        // Spielvariablen
+        // Spieler-Objekt (Ball)
+        const player = Bodies.circle(100, 200, 20, {
+            restitution: 0.8,
+            friction: 0.1,
+            density: 0.04,
+            render: {
+                fillStyle: '#FF5722'
+            },
+            label: 'player'
+        });
+
+        // Boden
+        const ground = Bodies.rectangle(
+            window.innerWidth / 2,
+            window.innerHeight - 10,
+            window.innerWidth,
+            20,
+            { isStatic: true, render: { fillStyle: '#4CAF50' }, label: 'ground' }
+        );
+
+        // Hindernisse (zufällig generiert)
+        const obstacles = [];
+        function createObstacle() {
+            const types = ['rectangle', 'circle', 'triangle', 'trampoline', 'lava'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            let obstacle;
+
+            const x = window.innerWidth + 100;
+            const y = Math.random() * (window.innerHeight - 200) + 100;
+
+            switch (type) {
+                case 'rectangle':
+                    obstacle = Bodies.rectangle(x, y, 50, 50, { 
+                        isStatic: false, 
+                        restitution: 0.6,
+                        render: { fillStyle: '#8D6E63' },
+                        label: 'obstacle'
+                    });
+                    break;
+                case 'circle':
+                    obstacle = Bodies.circle(x, y, 30, { 
+                        isStatic: false, 
+                        restitution: 0.8,
+                        render: { fillStyle: '#3949AB' },
+                        label: 'obstacle'
+                    });
+                    break;
+                case 'triangle':
+                    obstacle = Bodies.polygon(x, y, 3, 30, { 
+                        isStatic: false, 
+                        restitution: 0.7,
+                        render: { fillStyle: '#FFA000' },
+                        label: 'obstacle'
+                    });
+                    break;
+                case 'trampoline':
+                    obstacle = Bodies.rectangle(x, y, 80, 10, { 
+                        isStatic: false, 
+                        restitution: 1.5, // Hoher Rückprall
+                        render: { fillStyle: '#00E676' },
+                        label: 'trampoline'
+                    });
+                    break;
+                case 'lava':
+                    obstacle = Bodies.rectangle(x, y, 70, 15, { 
+                        isStatic: true, 
+                        render: { fillStyle: '#FF3D00' },
+                        label: 'lava'
+                    });
+                    break;
+            }
+
+            obstacles.push(obstacle);
+            Composite.add(world, obstacle);
+        }
+
+        // Spiel-Logik
         let score = 0;
-        let gameSpeed = 5;
-        let gameOver = false;
-        let lastObstacleTime = 0;
-        let hue = 0;
-        const obstacleTypes = [
-            { width: 50, height: 80, gap: 0 },
-            { width: 30, height: 120, gap: 0 },
-            { width: 70, height: 60, gap: 0 },
-            { width: 50, height: 100, gap: 30 }
-        ];
+        let gameActive = true;
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
 
-        // Spieler
-        const player = {
-            width: 40,
-            originalHeight: 60,
-            height: 60,
-            x: 100,
-            y: canvas.height - 60 - 50,
-            jumping: false,
-            jumpVelocity: 15,
-            jumpCount: 15,
-            gravity: 0.8,
-            sliding: false,
-            slideHeight: 30,
-            color: '#2196F3'
-        };
-
-        // Hindernisse
-        let obstacles = [];
-
-        // Tastenzustände
-        const keys = {
-            ArrowUp: false,
-            ArrowDown: false,
-            ' ': false
-        };
-
-        // Tasten-Events
-        window.addEventListener('keydown', (e) => {
-            if (['ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
-                keys[e.key] = true;
-                e.preventDefault();
+        // Hindernis-Spawner
+        setInterval(() => {
+            if (gameActive) {
+                createObstacle();
+                score++;
+                scoreElement.textContent = `Score: ${score}`;
             }
-            if (e.key === 'r' && gameOver) restartGame();
-        });
+        }, 2000);
 
-        window.addEventListener('keyup', (e) => {
-            if (['ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
-                keys[e.key] = false;
-                e.preventDefault();
+        // Spieler-Steuerung (Springen mit Leertaste)
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && gameActive) {
+                Matter.Body.applyForce(player, player.position, { x: 0, y: -0.05 });
             }
         });
 
-        // Neustart-Button
-        restartButton.addEventListener('click', restartGame);
-
-        function restartGame() {
-            player.y = canvas.height - player.originalHeight - 50;
-            player.height = player.originalHeight;
-            player.jumping = false;
-            player.sliding = false;
-            obstacles = [];
-            score = 0;
-            gameSpeed = 5;
-            gameOver = false;
-            lastObstacleTime = 0;
-            restartButton.style.display = 'none';
-        }
-
-        function spawnObstacle() {
-            const now = Date.now();
-            if (now - lastObstacleTime > 1000 + Math.random() * 1000) {
-                lastObstacleTime = now;
-                const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
-                
-                obstacles.push({
-                    width: type.width,
-                    height: type.height,
-                    x: canvas.width,
-                    y: canvas.height - type.height - 50 - type.gap,
-                    color: `hsl(${Math.random() * 360}, 70%, 50%)`,
-                    passed: false,
-                    hasGap: type.gap > 0
-                });
-            }
-        }
-
-        function updatePlayer() {
-            // Sprung
-            if (!player.jumping && (keys.ArrowUp || keys[' '])) {
-                player.jumping = true;
-                player.jumpCount = player.jumpVelocity;
-            }
-
-            if (player.jumping) {
-                if (player.jumpCount >= -player.jumpVelocity) {
-                    const neg = player.jumpCount < 0 ? -1 : 1;
-                    player.y -= (player.jumpCount ** 2) * 0.4 * neg;
-                    player.jumpCount -= 1;
-                } else {
-                    player.jumping = false;
+        // Kollisionserkennung (Game Over bei Lava)
+        Events.on(engine, 'collisionStart', (event) => {
+            const pairs = event.pairs;
+            for (let i = 0; i < pairs.length; i++) {
+                const pair = pairs[i];
+                if ((pair.bodyA.label === 'player' && pair.bodyB.label === 'lava') || 
+                    (pair.bodyB.label === 'player' && pair.bodyA.label === 'lava')) {
+                    gameOver();
                 }
             }
+        });
 
-            // Slide
-            if ((keys.ArrowDown || keys[' ']) && !player.jumping) {
-                player.sliding = true;
-                player.height = player.slideHeight;
-            } else {
-                player.sliding = false;
-                player.height = player.originalHeight;
-            }
-
-            // Gravitation
-            if (player.y < canvas.height - player.height - 50 && !player.jumping) {
-                player.y += player.gravity;
-            } else {
-                player.y = canvas.height - player.height - 50;
-            }
+        function gameOver() {
+            gameActive = false;
+            gameOverElement.style.display = 'block';
+            setTimeout(() => {
+                document.location.reload();
+            }, 2000);
         }
 
-        function checkCollisions() {
-            const playerRect = {
-                x: player.x,
-                y: player.y,
-                width: player.width,
-                height: player.height
-            };
+        // Alles zur Welt hinzufügen
+        Composite.add(world, [player, ground]);
 
-            for (let i = 0; i < obstacles.length; i++) {
-                const obstacle = obstacles[i];
-                const obstacleRect = {
-                    x: obstacle.x,
-                    y: obstacle.y,
-                    width: obstacle.width,
-                    height: obstacle.height
-                };
+        // Render & Run
+        Render.run(render);
+        const runner = Runner.create();
+        Runner.run(runner, engine);
 
-                // Kollisionserkennung
-                if (rectCollision(playerRect, obstacleRect)) {
-                    if (player.sliding && (player.y + player.height) >= (obstacle.y + obstacle.height - 5) && !obstacle.hasGap) {
-                        continue; // Durchgerutscht
-                    } else {
-                        gameOver = true;
-                        restartButton.style.display = 'block';
-                        return;
-                    }
-                }
-
-                // Punkte zählen
-                if (obstacle.x + obstacle.width < player.x && !obstacle.passed) {
-                    obstacle.passed = true;
-                    score++;
-                    scoreElement.textContent = `Score: ${score}`;
-                }
-            }
-        }
-
-        function rectCollision(rect1, rect2) {
-            return rect1.x < rect2.x + rect2.width &&
-                   rect1.x + rect1.width > rect2.x &&
-                   rect1.y < rect2.y + rect2.height &&
-                   rect1.y + rect1.height > rect2.y;
-        }
-
-        function updateObstacles() {
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                obstacles[i].x -= gameSpeed;
-                
-                if (obstacles[i].x < -obstacles[i].width) {
-                    obstacles.splice(i, 1);
-                }
-            }
-        }
-
-        function drawRGBBackground() {
-            // RGB Farbverlauf
-            hue = (hue + 0.5) % 360;
-            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-            gradient.addColorStop(0, `hsl(${hue}, 100%, 50%)`);
-            gradient.addColorStop(0.5, `hsl(${(hue + 120) % 360}, 100%, 50%)`);
-            gradient.addColorStop(1, `hsl(${(hue + 240) % 360}, 100%, 50%)`);
-            
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Boden
-            ctx.fillStyle = '#333';
-            ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
-        }
-
-        function drawPlayer() {
-            ctx.fillStyle = player.color;
-            
-            if (player.sliding) {
-                // Slide-Position
-                ctx.fillRect(player.x, player.y + 15, player.width, player.height - 15);
-            } else if (player.jumping) {
-                // Sprung-Position
-                ctx.beginPath();
-                ctx.arc(player.x + player.width/2, player.y + player.height/2, 
-                        player.width/2, 0, Math.PI * 2);
-                ctx.fill();
-            } else {
-                // Normale Position
-                ctx.fillRect(player.x, player.y, player.width, player.height);
-            }
-        }
-
-        function draw() {
-            // Hintergrund
-            drawRGBBackground();
-            
-            // Hindernisse
-            obstacles.forEach(obstacle => {
-                ctx.fillStyle = obstacle.color;
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-                
-                if (obstacle.hasGap) {
-                    ctx.fillStyle = '#333';
-                    ctx.fillRect(obstacle.x, obstacle.y + obstacle.height, obstacle.width, 30);
-                }
-            });
-            
-            // Spieler
-            drawPlayer();
-            
-            // Game Over
-            if (gameOver) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'white';
-                ctx.font = '36px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 20);
-                ctx.font = '24px Arial';
-                ctx.fillText(`Score: ${score}`, canvas.width/2, canvas.height/2 + 20);
-                ctx.textAlign = 'left';
-            }
-        }
-
-        function gameLoop() {
-            if (!gameOver) {
-                updatePlayer();
-                spawnObstacle();
-                updateObstacles();
-                checkCollisions();
-                gameSpeed = 5 + Math.floor(score / 10);
-            }
-            
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Spiel starten
-        gameLoop();
+        // Fensteranpassung
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            render.options.width = window.innerWidth;
+            render.options.height = window.innerHeight;
+            Matter.Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight - 10 });
+        });
     </script>
 </body>
 </html>
