@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mario-ähnliches Laufspiel (Korrigiert)</title>
+    <title>Mario-ähnliches Laufspiel (Final)</title>
     <style>
         body {
             margin: 0;
@@ -64,12 +64,6 @@
         #startButton:hover {
             background: #E64A19;
         }
-        .cloud {
-            position: absolute;
-            background: white;
-            border-radius: 50%;
-            opacity: 0.8;
-        }
     </style>
 </head>
 <body>
@@ -85,10 +79,12 @@
         let gameActive = false;
         let score = 0;
         let scrollSpeed = 3;
-        let groundHeight = 40;
+        const groundHeight = 40;
         let playerWidth = 30;
         let playerHeight = 50;
         let isJumping = false;
+        let isSliding = false;
+        let slideTimer = 0;
 
         // Matter.js Setup
         const Engine = Matter.Engine,
@@ -177,18 +173,26 @@
             ctx.translate(player.position.x, player.position.y);
             ctx.rotate(player.angle);
             
-            // Player body
-            ctx.fillStyle = '#FF0000';
-            ctx.fillRect(-playerWidth/2, -playerHeight/2, playerWidth, playerHeight);
+            if (isSliding) {
+                // Slide position (flach)
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(-playerWidth/2, -15, playerWidth, 30);
+                
+                ctx.fillStyle = '#0000FF';
+                ctx.fillRect(-playerWidth/2, -5, playerWidth, 20);
+            } else {
+                // Normal position
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(-playerWidth/2, -playerHeight/2, playerWidth, playerHeight);
+                
+                ctx.fillStyle = '#0000FF';
+                ctx.fillRect(-playerWidth/2, -playerHeight/6, playerWidth, playerHeight/3);
+            }
             
-            // Player overalls
-            ctx.fillStyle = '#0000FF';
-            ctx.fillRect(-playerWidth/2, -playerHeight/6, playerWidth, playerHeight/3);
-            
-            // Player face
+            // Kopf in beiden Positionen
             ctx.fillStyle = '#FFC0CB';
             ctx.beginPath();
-            ctx.arc(0, -playerHeight/4, playerWidth/3, 0, Math.PI * 2);
+            ctx.arc(0, isSliding ? -10 : -playerHeight/4, playerWidth/3, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.restore();
@@ -225,9 +229,10 @@
             const x = 850;
             
             if (type === 'pipe') {
-                const pipeHeight = Math.random() * 100 + 80;
+                // Kleinere Röhren (50-100px hoch statt 80-180px)
+                const pipeHeight = Math.random() * 50 + 50;
                 obstacle = Bodies.rectangle(x, 400 - groundHeight - pipeHeight/2, 
-                                          60, pipeHeight, {
+                                          50, pipeHeight, { // Schmalere Röhren (50px breit)
                     isStatic: true,
                     label: 'obstacle'
                 });
@@ -255,10 +260,10 @@
                 
                 if (obstacle.type === 'pipe') {
                     ctx.fillStyle = '#00AA00';
-                    ctx.fillRect(-30, -obstacle.body.bounds.max.y + obstacle.body.position.y, 60, obstacle.body.bounds.max.y - obstacle.body.bounds.min.y);
+                    ctx.fillRect(-25, -obstacle.body.bounds.max.y + obstacle.body.position.y, 50, obstacle.body.bounds.max.y - obstacle.body.bounds.min.y);
                     // Pipe details
                     ctx.fillStyle = '#007700';
-                    ctx.fillRect(-25, -obstacle.body.bounds.max.y + obstacle.body.position.y + 5, 50, 10);
+                    ctx.fillRect(-20, -obstacle.body.bounds.max.y + obstacle.body.position.y + 5, 40, 8);
                 } else {
                     ctx.fillStyle = '#B87333';
                     ctx.fillRect(-20, -20, 40, 40);
@@ -277,6 +282,7 @@
             score = 0;
             scrollSpeed = 3;
             isJumping = false;
+            isSliding = false;
             document.getElementById('startButton').style.display = 'none';
             document.getElementById('gameOver').style.display = 'none';
             
@@ -342,8 +348,21 @@
             backgroundOffset += scrollSpeed;
             if (backgroundOffset >= 800) backgroundOffset = 0;
             
+            // Slide timer
+            if (isSliding) {
+                slideTimer++;
+                if (slideTimer > 60) { // Nach 1 Sekunde aufstehen
+                    isSliding = false;
+                    playerHeight = 50;
+                    Matter.Body.setPosition(player, { 
+                        x: player.position.x, 
+                        y: 400 - groundHeight - playerHeight/2 
+                    });
+                }
+            }
+            
             // Check if player is on ground
-            const playerBottom = player.position.y + playerHeight/2;
+            const playerBottom = player.position.y + (isSliding ? 15 : playerHeight/2);
             isJumping = playerBottom < 400 - groundHeight - 5;
             
             score++;
@@ -362,12 +381,16 @@
         document.addEventListener('keydown', (e) => {
             if (!gameActive) return;
             
-            if ((e.code === 'Space' || e.key === 'ArrowUp') && !isJumping) {
+            // Jump (Space or Up Arrow)
+            if ((e.code === 'Space' || e.key === 'ArrowUp') && !isJumping && !isSliding) {
                 Matter.Body.setVelocity(player, { x: 0, y: -10 });
                 isJumping = true;
             }
             
-            if (e.key === 'ArrowDown') {
+            // Slide (Down Arrow)
+            if ((e.key === 'ArrowDown') && !isSliding && !isJumping) {
+                isSliding = true;
+                slideTimer = 0;
                 playerHeight = 30;
                 Matter.Body.setPosition(player, { 
                     x: player.position.x, 
@@ -377,8 +400,13 @@
         });
         
         document.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowDown') {
+            if (e.key === 'ArrowDown' && isSliding) {
+                isSliding = false;
                 playerHeight = 50;
+                Matter.Body.setPosition(player, { 
+                    x: player.position.x, 
+                    y: 400 - groundHeight - playerHeight/2 
+                });
             }
         });
 
@@ -387,9 +415,18 @@
             const pairs = event.pairs;
             for (let i = 0; i < pairs.length; i++) {
                 const pair = pairs[i];
+                
+                // Kollision mit Hindernissen
                 if ((pair.bodyA.label === 'player' && pair.bodyB.label === 'obstacle') || 
                     (pair.bodyB.label === 'player' && pair.bodyA.label === 'obstacle')) {
-                    gameOver();
+                    
+                    // Nur Game Over wenn nicht am Sliden unter einer Röhre
+                    const obstacle = pair.bodyA.label === 'obstacle' ? pair.bodyA : pair.bodyB;
+                    const obstacleHeight = obstacle.bounds.max.y - obstacle.bounds.min.y;
+                    
+                    if (!isSliding || obstacleHeight < 60) { // Kleine Hindernisse (Blöcke) immer tödlich
+                        gameOver();
+                    }
                 }
                 
                 // Check if player landed on ground
