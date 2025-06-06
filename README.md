@@ -1,26 +1,51 @@
-<!DOCTYPE html>
+<Willkommen>
 <html>
 <head>
-    <title>Jump & Slide Game</title>
+    <title>Jump & Slide Adventure</title>
     <style>
-        canvas {
-            background: white;
-            border: 1px solid black;
-            display: block;
-            margin: 0 auto;
-        }
         body {
-            text-align: center;
+            margin: 0;
+            overflow: hidden;
+            background: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
             font-family: Arial, sans-serif;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #87CEEB, #E0F7FA);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        #restart {
+            position: absolute;
+            bottom: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <h1>Jump & Slide Game</h1>
+    <div id="ui">
+        <h1>Jump & Slide Adventure</h1>
+        <p id="score">Score: 0</p>
+    </div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
-    <p>Pfeiltasten: ← → bewegen | ↑ springen | ↓ slideln</p>
-    <p id="score">Score: 0</p>
-    <button id="restart" style="display:none;">Neustart</button>
+    <button id="restart">Neustart (R)</button>
 
     <script>
         // Canvas setup
@@ -34,7 +59,13 @@
         let gameSpeed = 5;
         let gameOver = false;
         let lastObstacleTime = 0;
-        const obstacleFrequency = 1500; // ms
+        let backgroundOffset = 0;
+        const obstacleTypes = [
+            { width: 50, height: 80, color: '#4CAF50', gap: 0 }, // Normales Hindernis
+            { width: 30, height: 120, color: '#F44336', gap: 0 }, // Hohes Hindernis
+            { width: 70, height: 60, color: '#FFC107', gap: 0 },  // Breites Hindernis
+            { width: 50, height: 100, color: '#9C27B0', gap: 30 } // Lücke darunter
+        ];
 
         // Spieler
         const player = {
@@ -43,40 +74,51 @@
             height: 60,
             x: 100,
             y: canvas.height - 60 - 50,
-            speed: 5,
+            speed: 0, // Keine seitliche Bewegung
             jumping: false,
-            jumpVelocity: 16, // Höherer Sprung
-            jumpCount: 16,
+            jumpVelocity: 18, // Höherer Sprung
+            jumpCount: 18,
             gravity: 0.8,
             sliding: false,
             slideHeight: 30,
             slideCooldown: 0,
-            color: 'red'
+            color: '#2196F3'
         };
 
         // Hindernisse
         let obstacles = [];
+        let clouds = [];
+        
+        // Wolken erstellen
+        for (let i = 0; i < 10; i++) {
+            clouds.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * 150,
+                width: 60 + Math.random() * 60,
+                speed: 0.5 + Math.random() * 1
+            });
+        }
 
         // Tastenzustände
         const keys = {
-            ArrowLeft: false,
-            ArrowRight: false,
             ArrowUp: false,
             ArrowDown: false
         };
 
         // Tasten-Events
         window.addEventListener('keydown', (e) => {
-            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-                keys[e.key] = true;
+            if (['ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
+                if (e.key === ' ') keys.ArrowUp = true; // Leertaste für Sprung
+                else keys[e.key] = true;
                 e.preventDefault();
             }
             if (e.key === 'r' && gameOver) restartGame();
         });
 
         window.addEventListener('keyup', (e) => {
-            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-                keys[e.key] = false;
+            if (['ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
+                if (e.key === ' ') keys.ArrowUp = false;
+                else keys[e.key] = false;
                 e.preventDefault();
             }
         });
@@ -100,28 +142,25 @@
 
         function spawnObstacle() {
             const now = Date.now();
-            if (now - lastObstacleTime > obstacleFrequency) {
+            if (now - lastObstacleTime > 1000 + Math.random() * 1000) {
                 lastObstacleTime = now;
-                const heights = [60, 80, 100];
-                const height = heights[Math.floor(Math.random() * heights.length)];
+                const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+                
                 obstacles.push({
-                    width: 50,
-                    height: height,
+                    width: type.width,
+                    height: type.height,
                     x: canvas.width,
-                    y: canvas.height - height - 50,
-                    color: 'green',
-                    passed: false
+                    y: canvas.height - type.height - 50 - type.gap,
+                    color: type.color,
+                    passed: false,
+                    hasGap: type.gap > 0
                 });
             }
         }
 
         function updatePlayer() {
-            // Bewegung
-            if (keys.ArrowLeft) player.x -= player.speed;
-            if (keys.ArrowRight) player.x += player.speed;
-
             // Sprung (höher)
-            if (!player.jumping && keys.ArrowUp) {
+            if (!player.jumping && (keys.ArrowUp || keys[' '])) {
                 player.jumping = true;
                 player.jumpCount = player.jumpVelocity;
             }
@@ -129,7 +168,7 @@
             if (player.jumping) {
                 if (player.jumpCount >= -player.jumpVelocity) {
                     const neg = player.jumpCount < 0 ? -1 : 1;
-                    player.y -= (player.jumpCount ** 2) * 0.5 * neg;
+                    player.y -= (player.jumpCount ** 2) * 0.4 * neg; // Weichere Sprungkurve
                     player.jumpCount -= 1;
                 } else {
                     player.jumping = false;
@@ -153,9 +192,6 @@
             } else {
                 player.y = canvas.height - player.height - 50;
             }
-
-            // Bildschirmbegrenzung
-            player.x = Math.max(0, Math.min(player.x, canvas.width - player.width));
         }
 
         function checkCollisions() {
@@ -177,7 +213,7 @@
 
                 // Kollisionserkennung
                 if (rectCollision(playerRect, obstacleRect)) {
-                    if (player.sliding && (player.y + player.height) >= (obstacle.y + obstacle.height - 5)) {
+                    if (player.sliding && (player.y + player.height) >= (obstacle.y + obstacle.height - 5) && !obstacle.hasGap) {
                         // Erfolgreich unter Hindernis durchgerutscht
                         continue;
                     } else {
@@ -191,6 +227,7 @@
                 if (obstacle.x + obstacle.width < player.x && !obstacle.passed) {
                     obstacle.passed = true;
                     score++;
+                    scoreElement.textContent = `Score: ${score}`;
                 }
             }
         }
@@ -213,31 +250,90 @@
             }
         }
 
-        function draw() {
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        function drawBackground() {
+            // Himmel
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#E0F7FA');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Boden zeichnen
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
-            
-            // Spieler zeichnen
-            ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-            
-            // Hindernisse zeichnen
-            ctx.fillStyle = 'green';
-            obstacles.forEach(obstacle => {
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            // Wolken
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            clouds.forEach(cloud => {
+                ctx.beginPath();
+                ctx.arc(cloud.x, cloud.y, cloud.width/3, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width/4, cloud.y - cloud.width/6, cloud.width/4, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width/3, cloud.y, cloud.width/3, 0, Math.PI * 2);
+                ctx.arc(cloud.x - cloud.width/4, cloud.y + cloud.width/6, cloud.width/4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Wolken bewegen
+                cloud.x -= cloud.speed;
+                if (cloud.x < -cloud.width) {
+                    cloud.x = canvas.width + cloud.width;
+                    cloud.y = Math.random() * 150;
+                }
             });
             
-            // Score anzeigen
-            scoreElement.textContent = `Score: ${score}`;
+            // Boden
+            ctx.fillStyle = '#795548';
+            ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
             
+            // Gras
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(0, canvas.height - 55, canvas.width, 5);
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            
+            // Spieler mit Animation
+            if (player.sliding) {
+                // Slide-Position
+                ctx.fillRect(player.x, player.y + 15, player.width, player.height - 15);
+            } else if (player.jumping) {
+                // Sprung-Position
+                ctx.beginPath();
+                ctx.ellipse(player.x + player.width/2, player.y + player.height/2, 
+                            player.width/2, player.height/2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Normale Position
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+            }
+        }
+
+        function draw() {
+            // Hintergrund
+            drawBackground();
+            
+            // Hindernisse
+            obstacles.forEach(obstacle => {
+                ctx.fillStyle = obstacle.color;
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                
+                // Lücke zeichnen wenn vorhanden
+                if (obstacle.hasGap) {
+                    ctx.fillStyle = '#795548';
+                    ctx.fillRect(obstacle.x, obstacle.y + obstacle.height, obstacle.width, 30);
+                }
+            });
+            
+            // Spieler
+            drawPlayer();
+            
+            // Game Over
             if (gameOver) {
-                ctx.fillStyle = 'black';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
                 ctx.font = '36px Arial';
-                ctx.fillText('GAME OVER', canvas.width/2 - 100, canvas.height/2);
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 20);
+                ctx.font = '24px Arial';
+                ctx.fillText(`Final Score: ${score}`, canvas.width/2, canvas.height/2 + 20);
+                ctx.textAlign = 'left';
             }
         }
 
@@ -249,7 +345,16 @@
                 checkCollisions();
                 
                 // Schwierigkeit erhöhen
-                gameSpeed = 5 + Math.floor(score / 5);
+                gameSpeed = 5 + Math.floor(score / 10);
+                
+                // Wolken aktualisieren
+                clouds.forEach(cloud => {
+                    cloud.x -= cloud.speed * 0.5;
+                    if (cloud.x < -cloud.width) {
+                        cloud.x = canvas.width + cloud.width;
+                        cloud.y = Math.random() * 150;
+                    }
+                });
             }
             
             draw();
