@@ -1,79 +1,116 @@
 <Willkommen>
 <html>
 <head>
-    <title>Parkour Runner - Slide & RGB</title>
+    <title>Ultimativer Parkour Runner</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
             text-align: center;
             user-select: none;
-            animation: rgbBackground 10s infinite alternate;
+            background: linear-gradient(45deg, #FF4136, #0074D9, #2ECC40, #FFDC00);
+            background-size: 400% 400%;
+            animation: rgbBackground 15s ease infinite;
         }
         @keyframes rgbBackground {
-            0% { background-color: #FF4136; }
-            33% { background-color: #0074D9; }
-            66% { background-color: #2ECC40; }
-            100% { background-color: #FFDC00; }
+            0% { background-position: 0% 50% }
+            50% { background-position: 100% 50% }
+            100% { background-position: 0% 50% }
         }
         #game-container {
             position: relative;
-            width: 600px;
-            height: 250px; /* Höher für Slide-Mechanik */
+            width: 700px;
+            height: 300px;
             margin: 20px auto;
-            background-color: #333;
+            background-color: rgba(0,0,0,0.7);
             overflow: hidden;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            border: 2px solid white;
         }
         #ground {
             position: absolute;
             bottom: 0;
             width: 100%;
-            height: 20px;
-            background-color: #2E8B57;
+            height: 30px;
+            background: linear-gradient(to right, #2E8B57, #3CB371);
         }
         #player {
             position: absolute;
-            width: 30px;
-            height: 50px;
+            width: 35px;
+            height: 60px;
             background-color: #FF6347;
-            bottom: 20px;
-            left: 50px;
-            border-radius: 5px 5px 0 0;
-            transition: height 0.2s;
+            bottom: 30px;
+            left: 80px;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+        .player-slide {
+            height: 30px !important;
+            bottom: 45px !important;
+            background-color: #FF851B !important;
         }
         .obstacle {
             position: absolute;
-            width: 20px;
-            height: 40px;
+            bottom: 30px;
+            right: -50px;
+            border-radius: 5px;
+        }
+        .low-obstacle {
+            width: 25px;
+            height: 45px;
             background-color: #4682B4;
-            bottom: 20px;
-            right: -20px;
-            border-radius: 5px 5px 0 0;
         }
         .high-obstacle {
-            height: 80px; /* Höhere Hindernisse für Slide-Mechanik */
+            width: 25px;
+            height: 90px;
+            background-color: #6A5ACD;
+        }
+        .flying-obstacle {
+            width: 40px;
+            height: 25px;
+            bottom: 150px;
+            background-color: #FF69B4;
+        }
+        .coin {
+            width: 20px;
+            height: 20px;
+            background-color: gold;
+            border-radius: 50%;
+            bottom: 100px;
+            animation: spin 2s linear infinite;
+            z-index: 5;
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
         }
         #score-display {
-            font-size: 24px;
-            margin: 10px;
+            font-size: 28px;
+            margin: 15px;
             color: white;
-            text-shadow: 1px 1px 2px black;
+            text-shadow: 2px 2px 4px black;
+            font-weight: bold;
         }
         #controls {
             margin: 20px;
         }
         button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #4CAF50;
+            padding: 12px 25px;
+            font-size: 18px;
+            background: linear-gradient(to bottom, #4CAF50, #45a049);
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
-            margin: 0 10px;
+            margin: 0 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
         }
         #game-over {
             display: none;
@@ -81,37 +118,49 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             color: white;
-            padding: 20px;
-            border-radius: 10px;
+            padding: 30px;
+            border-radius: 15px;
             text-align: center;
             width: 80%;
-            z-index: 10;
+            z-index: 20;
+            border: 2px solid #FF6347;
         }
         #instructions {
-            margin: 10px;
+            margin: 15px;
             color: white;
+            text-shadow: 1px 1px 2px black;
+            font-size: 18px;
+        }
+        #coin-count {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: gold;
+            font-size: 24px;
             text-shadow: 1px 1px 2px black;
         }
     </style>
 </head>
 <body>
-    <h1 style="color: white; text-shadow: 1px 1px 2px black;">Parkour Runner</h1>
+    <h1 style="color: white; text-shadow: 2px 2px 4px black; font-size: 36px;">Ultimativer Parkour Runner</h1>
     <div id="instructions">
-        Leertaste = Springen | Shift = Slide unter Hindernissen
+        ↑/Space = Springen | Shift = Slide | Gesammelte Münzen: <span id="coin-display">0</span>
     </div>
     <div id="score-display">Punkte: 0</div>
     <div id="controls">
-        <button id="start-btn">Start</button>
+        <button id="start-btn">Spiel starten</button>
     </div>
     <div id="game-container">
         <div id="ground"></div>
         <div id="player"></div>
+        <div id="coin-count">Münzen: 0</div>
         <div id="game-over">
-            <h2>Game Over!</h2>
-            <p id="final-score">Punkte: 0</p>
-            <button id="restart-btn">Nochmal spielen</button>
+            <h2 style="color: #FF6347; margin-top: 0;">Game Over!</h2>
+            <p>Dein Score: <span id="final-score">0</span></p>
+            <p>Gesammelte Münzen: <span id="final-coins">0</span></p>
+            <button id="restart-btn">Neustart</button>
         </div>
     </div>
 
@@ -124,33 +173,41 @@
         const gameOverScreen = document.getElementById('game-over');
         const finalScore = document.getElementById('final-score');
         const restartBtn = document.getElementById('restart-btn');
+        const coinDisplay = document.getElementById('coin-display');
+        const coinCount = document.getElementById('coin-count');
+        const finalCoins = document.getElementById('final-coins');
 
         // Game Variables
         let score = 0;
+        let coins = 0;
         let isGameRunning = false;
-        let gameSpeed = 5;
+        let gameSpeed = 6;
         let obstacleInterval;
         let gameLoop;
         let obstacles = [];
         let isSliding = false;
         let slideTimeout;
+        let isJumping = false;
+        let jumpPower = 0;
+        const gravity = 0.6;
 
         // Player Properties
         const playerProps = {
-            x: 50,
-            y: gameContainer.clientHeight - 70,
-            width: 30,
-            height: 50,
-            isJumping: false,
-            jumpPower: 0,
-            gravity: 0.5,
-            normalHeight: 50,
-            slidingHeight: 25
+            x: 80,
+            y: gameContainer.clientHeight - 90,
+            width: 35,
+            normalHeight: 60,
+            slidingHeight: 30,
+            speed: 0
         };
 
-        // Initialize player position
-        player.style.left = playerProps.x + 'px';
-        player.style.bottom = '20px';
+        // Initialize game
+        function initGame() {
+            player.style.height = playerProps.normalHeight + 'px';
+            player.style.bottom = '30px';
+            player.style.left = playerProps.x + 'px';
+            player.classList.remove('player-slide');
+        }
 
         // Game Functions
         function startGame() {
@@ -159,69 +216,84 @@
             // Reset game state
             isGameRunning = true;
             score = 0;
-            gameSpeed = 5;
-            scoreDisplay.textContent = 'Punkte: 0';
+            coins = 0;
+            gameSpeed = 6;
+            scoreDisplay.textContent = 'Punkte: ' + score;
+            coinDisplay.textContent = coins;
+            coinCount.textContent = 'Münzen: ' + coins;
             gameOverScreen.style.display = 'none';
             startBtn.style.display = 'none';
             
-            // Clear existing obstacles
-            document.querySelectorAll('.obstacle').forEach(obs => obs.remove());
+            // Clear existing objects
+            document.querySelectorAll('.obstacle, .coin').forEach(obj => obj.remove());
             obstacles = [];
             
-            // Reset player position and state
-            playerProps.y = gameContainer.clientHeight - 70;
-            playerProps.isJumping = false;
-            playerProps.jumpPower = 0;
-            player.style.bottom = '20px';
-            player.style.height = playerProps.normalHeight + 'px';
+            // Reset player
+            playerProps.y = gameContainer.clientHeight - 90;
+            isJumping = false;
+            jumpPower = 0;
             isSliding = false;
+            clearTimeout(slideTimeout);
+            initGame();
             
             // Start game loops
-            obstacleInterval = setInterval(createObstacle, 1500);
-            gameLoop = setInterval(updateGame, 20);
+            obstacleInterval = setInterval(createObstacle, 1200);
+            gameLoop = requestAnimationFrame(updateGame);
         }
 
         function createObstacle() {
             if (!isGameRunning) return;
             
+            // Create different types of obstacles
+            const obstacleTypes = ['low', 'high', 'flying', 'coin'];
+            const weights = [0.35, 0.25, 0.25, 0.15]; // Probability weights
+            const type = weightedRandom(obstacleTypes, weights);
+            
             const obstacle = document.createElement('div');
-            obstacle.className = 'obstacle';
+            obstacle.className = 'obstacle ' + type + '-obstacle';
             
-            // 30% Chance für ein hohes Hindernis (nur durch Sliden vermeidbar)
-            if (Math.random() < 0.3) {
-                obstacle.classList.add('high-obstacle');
-            }
-            
-            obstacle.style.right = '-20px';
             gameContainer.appendChild(obstacle);
             
             obstacles.push({
                 element: obstacle,
                 x: gameContainer.clientWidth,
-                width: 20,
-                height: obstacle.classList.contains('high-obstacle') ? 80 : 40,
+                width: parseInt(obstacle.style.width) || 25,
+                height: parseInt(obstacle.style.height) || 45,
                 speed: gameSpeed,
-                isHigh: obstacle.classList.contains('high-obstacle')
+                type: type,
+                isCoin: type === 'coin',
+                y: type === 'flying' ? 150 : (type === 'coin' ? 100 : gameContainer.clientHeight - (type === 'high' ? 120 : 75))
             });
         }
 
-        function jump() {
-            if (playerProps.isJumping || !isGameRunning || isSliding) return;
+        function weightedRandom(items, weights) {
+            let random = Math.random();
+            let weightSum = 0;
             
-            playerProps.isJumping = true;
-            playerProps.jumpPower = 12;
-            endSlide(); // Falls während des Sprungs geslidet wird
+            for (let i = 0; i < items.length; i++) {
+                weightSum += weights[i];
+                if (random <= weightSum) return items[i];
+            }
+            
+            return items[0];
+        }
+
+        function jump() {
+            if (isJumping || isSliding || !isGameRunning) return;
+            
+            isJumping = true;
+            jumpPower = 14;
+            endSlide();
         }
 
         function startSlide() {
-            if (playerProps.isJumping || !isGameRunning || isSliding) return;
+            if (isJumping || isSliding || !isGameRunning) return;
             
             isSliding = true;
-            player.style.height = playerProps.slidingHeight + 'px';
-            player.style.bottom = (20 - (playerProps.normalHeight - playerProps.slidingHeight)) + 'px';
+            player.classList.add('player-slide');
             
-            // Automatisches Aufstehen nach 1 Sekunde
-            slideTimeout = setTimeout(endSlide, 1000);
+            // Automatically stand up after 800ms
+            slideTimeout = setTimeout(endSlide, 800);
         }
 
         function endSlide() {
@@ -229,72 +301,97 @@
             
             clearTimeout(slideTimeout);
             isSliding = false;
-            player.style.height = playerProps.normalHeight + 'px';
-            player.style.bottom = '20px';
+            player.classList.remove('player-slide');
         }
 
         function updatePlayer() {
-            // Apply gravity
-            playerProps.y -= playerProps.jumpPower;
-            playerProps.jumpPower -= playerProps.gravity;
-            
-            // Ground collision
-            if (playerProps.y >= gameContainer.clientHeight - 70) {
-                playerProps.y = gameContainer.clientHeight - 70;
-                playerProps.isJumping = false;
-                playerProps.jumpPower = 0;
+            // Apply gravity if jumping
+            if (isJumping) {
+                playerProps.y -= jumpPower;
+                jumpPower -= gravity;
+                
+                // Check if landed
+                if (playerProps.y >= gameContainer.clientHeight - 90) {
+                    playerProps.y = gameContainer.clientHeight - 90;
+                    isJumping = false;
+                    jumpPower = 0;
+                }
             }
             
             // Update player position
-            player.style.bottom = (gameContainer.clientHeight - playerProps.y - (isSliding ? playerProps.slidingHeight : playerProps.normalHeight)) + 'px';
+            player.style.bottom = (gameContainer.clientHeight - playerProps.y - 
+                                (isSliding ? playerProps.slidingHeight : playerProps.normalHeight)) + 'px';
         }
 
         function updateObstacles() {
             for (let i = obstacles.length - 1; i >= 0; i--) {
-                const obstacle = obstacles[i];
-                obstacle.x -= obstacle.speed;
-                obstacle.element.style.right = (gameContainer.clientWidth - obstacle.x) + 'px';
+                const obj = obstacles[i];
+                obj.x -= obj.speed;
+                obj.element.style.right = (gameContainer.clientWidth - obj.x) + 'px';
                 
-                // Remove obstacles that are off screen
-                if (obstacle.x + obstacle.width < 0) {
-                    gameContainer.removeChild(obstacle.element);
+                // Remove if off screen
+                if (obj.x + obj.width < 0) {
+                    gameContainer.removeChild(obj.element);
                     obstacles.splice(i, 1);
-                    score++;
-                    scoreDisplay.textContent = 'Punkte: ' + score;
-                    
-                    // Increase difficulty every 5 points
-                    if (score % 5 === 0) {
-                        gameSpeed += 0.5;
+                    if (!obj.isCoin) {
+                        score++;
+                        scoreDisplay.textContent = 'Punkte: ' + score;
+                        
+                        // Increase difficulty
+                        if (score % 10 === 0) gameSpeed += 0.5;
                     }
                 }
                 
-                // Check collision
-                if (checkCollision(obstacle)) {
-                    endGame();
-                    return;
+                // Check collisions
+                if (checkCollision(obj)) {
+                    if (obj.isCoin) {
+                        collectCoin(obj, i);
+                    } else {
+                        endGame();
+                        return;
+                    }
                 }
             }
         }
 
-        function checkCollision(obstacle) {
+        function checkCollision(obj) {
             const playerLeft = playerProps.x;
             const playerRight = playerProps.x + playerProps.width;
             const playerTop = playerProps.y;
             const playerBottom = playerProps.y + (isSliding ? playerProps.slidingHeight : playerProps.normalHeight);
             
-            const obstacleLeft = obstacle.x;
-            const obstacleRight = obstacle.x + obstacle.width;
-            const obstacleTop = gameContainer.clientHeight - obstacle.height - 20;
-            const obstacleBottom = gameContainer.clientHeight - 20;
+            const objLeft = obj.x;
+            const objRight = obj.x + obj.width;
+            const objTop = obj.y;
+            const objBottom = obj.y + obj.height;
             
-            // Kollision nur wenn nicht geslidet wird oder Hindernis zu hoch ist
-            return (
-                playerRight > obstacleLeft &&
-                playerLeft < obstacleRight &&
-                playerBottom > obstacleTop &&
-                playerTop < obstacleBottom &&
-                !(isSliding && !obstacle.isHigh) // Keine Kollision wenn geslidet wird und Hindernis nicht hoch ist
-            );
+            // Coin collection
+            if (obj.isCoin) {
+                return (playerRight > objLeft &&
+                        playerLeft < objRight &&
+                        playerBottom > objTop &&
+                        playerTop < objBottom);
+            }
+            
+            // Obstacle collision
+            return (playerRight > objLeft &&
+                    playerLeft < objRight &&
+                    playerBottom > objTop &&
+                    playerTop < objBottom &&
+                    !(isSliding && obj.type === 'low'));
+        }
+
+        function collectCoin(obj, index) {
+            coins++;
+            coinDisplay.textContent = coins;
+            coinCount.textContent = 'Münzen: ' + coins;
+            gameContainer.removeChild(obj.element);
+            obstacles.splice(index, 1);
+            score += 2; // Bonus points for coins
+            scoreDisplay.textContent = 'Punkte: ' + score;
+            
+            // Play coin sound (would need audio file)
+            // new Audio('coin.mp3').play();
         }
 
         function updateGame() {
@@ -302,23 +399,29 @@
             
             updatePlayer();
             updateObstacles();
+            
+            gameLoop = requestAnimationFrame(updateGame);
         }
 
         function endGame() {
             isGameRunning = false;
+            cancelAnimationFrame(gameLoop);
             clearInterval(obstacleInterval);
-            clearInterval(gameLoop);
             
-            finalScore.textContent = 'Punkte: ' + score;
+            finalScore.textContent = score;
+            finalCoins.textContent = coins;
             gameOverScreen.style.display = 'block';
             startBtn.style.display = 'inline-block';
         }
 
         // Event Listeners
         document.addEventListener('keydown', (e) => {
-            if (!isGameRunning) return;
+            if (!isGameRunning && (e.code === 'Space' || e.key === 'ArrowUp' || e.key === 'Shift')) {
+                startGame();
+                return;
+            }
             
-            if ((e.code === 'Space' || e.key === 'ArrowUp') && !isSliding) {
+            if (e.code === 'Space' || e.key === 'ArrowUp') {
                 e.preventDefault();
                 jump();
             } else if (e.key === 'Shift') {
