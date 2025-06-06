@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mario-ähnliches Laufspiel</title>
+    <title>Mario-ähnliches Laufspiel (Korrigiert)</title>
     <style>
         body {
             margin: 0;
@@ -88,6 +88,7 @@
         let groundHeight = 40;
         let playerWidth = 30;
         let playerHeight = 50;
+        let isJumping = false;
 
         // Matter.js Setup
         const Engine = Matter.Engine,
@@ -140,9 +141,7 @@
             ctx.save();
             clouds.forEach(cloud => {
                 ctx.beginPath();
-                // Main cloud circle
                 ctx.arc(cloud.x, cloud.y, cloud.width/2, 0, Math.PI * 2);
-                // Smaller circles for fluffiness
                 ctx.arc(cloud.x - cloud.width/3, cloud.y - cloud.width/6, cloud.width/3, 0, Math.PI * 2);
                 ctx.arc(cloud.x + cloud.width/3, cloud.y - cloud.width/6, cloud.width/3, 0, Math.PI * 2);
                 ctx.arc(cloud.x - cloud.width/4, cloud.y + cloud.width/6, cloud.width/3, 0, Math.PI * 2);
@@ -150,7 +149,6 @@
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
                 ctx.fill();
                 
-                // Move clouds
                 cloud.x -= cloud.speed;
                 if (cloud.x < -cloud.width) {
                     cloud.x = 800 + cloud.width;
@@ -160,14 +158,15 @@
             ctx.restore();
         }
 
-        // Create Player (Mario-ähnlich)
+        // Create Player
         function createPlayer() {
             player = Bodies.rectangle(100, 400 - groundHeight - playerHeight/2, 
                                     playerWidth, playerHeight, {
                 restitution: 0.2,
                 friction: 0.3,
                 density: 0.05,
-                label: 'player'
+                label: 'player',
+                chamfer: { radius: 5 }
             });
             Composite.add(world, player);
         }
@@ -200,53 +199,76 @@
             ground = Bodies.rectangle(400, 400 - groundHeight/2, 800, groundHeight, {
                 isStatic: true,
                 label: 'ground',
-                render: { fillStyle: '#4CAF50' }
+                render: { visible: false }
             });
             Composite.add(world, ground);
         }
 
+        // Draw Ground
+        function drawGround() {
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(0, 400 - groundHeight, 800, groundHeight);
+            
+            // Ground details
+            ctx.fillStyle = '#388E3C';
+            for (let x = -backgroundOffset % 40; x < 800; x += 40) {
+                ctx.fillRect(x, 400 - groundHeight, 20, 5);
+            }
+        }
+
         // Create Obstacles
         function createObstacle() {
-            const types = ['pipe', 'block', 'gap'];
+            const types = ['pipe', 'block'];
             const type = types[Math.floor(Math.random() * types.length)];
             
             let obstacle;
-            const x = 850; // Start rechts außerhalb
+            const x = 850;
             
-            switch (type) {
-                case 'pipe':
-                    const pipeHeight = Math.random() * 100 + 80;
-                    obstacle = Bodies.rectangle(x, 400 - groundHeight - pipeHeight/2, 
-                                              60, pipeHeight, {
-                        isStatic: true,
-                        label: 'obstacle',
-                        render: { fillStyle: '#00AA00' }
-                    });
-                    break;
-                    
-                case 'block':
-                    obstacle = Bodies.rectangle(x, 400 - groundHeight - 30, 
-                                              40, 40, {
-                        isStatic: true,
-                        label: 'obstacle',
-                        render: { fillStyle: '#B87333' }
-                    });
-                    break;
-                    
-                case 'gap':
-                    // Ein unsichtbares Hindernis, das den Spieler fallen lässt
-                    obstacle = Bodies.rectangle(x + 100, 400 - groundHeight/2, 
-                                              200, groundHeight, {
-                        isStatic: true,
-                        isSensor: true,
-                        label: 'gap',
-                        render: { fillStyle: 'transparent' }
-                    });
-                    break;
+            if (type === 'pipe') {
+                const pipeHeight = Math.random() * 100 + 80;
+                obstacle = Bodies.rectangle(x, 400 - groundHeight - pipeHeight/2, 
+                                          60, pipeHeight, {
+                    isStatic: true,
+                    label: 'obstacle'
+                });
+            } else {
+                obstacle = Bodies.rectangle(x, 400 - groundHeight - 30, 
+                                          40, 40, {
+                    isStatic: true,
+                    label: 'obstacle'
+                });
             }
             
-            obstacles.push(obstacle);
+            obstacles.push({
+                body: obstacle,
+                type: type
+            });
             Composite.add(world, obstacle);
+        }
+
+        // Draw Obstacles
+        function drawObstacles() {
+            obstacles.forEach(obstacle => {
+                ctx.save();
+                ctx.translate(obstacle.body.position.x, obstacle.body.position.y);
+                ctx.rotate(obstacle.body.angle);
+                
+                if (obstacle.type === 'pipe') {
+                    ctx.fillStyle = '#00AA00';
+                    ctx.fillRect(-30, -obstacle.body.bounds.max.y + obstacle.body.position.y, 60, obstacle.body.bounds.max.y - obstacle.body.bounds.min.y);
+                    // Pipe details
+                    ctx.fillStyle = '#007700';
+                    ctx.fillRect(-25, -obstacle.body.bounds.max.y + obstacle.body.position.y + 5, 50, 10);
+                } else {
+                    ctx.fillStyle = '#B87333';
+                    ctx.fillRect(-20, -20, 40, 40);
+                    // Block details
+                    ctx.fillStyle = '#A05A2C';
+                    ctx.fillRect(-15, -15, 30, 5);
+                }
+                
+                ctx.restore();
+            });
         }
 
         // Game Functions
@@ -254,31 +276,29 @@
             gameActive = true;
             score = 0;
             scrollSpeed = 3;
+            isJumping = false;
             document.getElementById('startButton').style.display = 'none';
             document.getElementById('gameOver').style.display = 'none';
             
-            // Clear existing bodies
             Composite.clear(world);
+            obstacles = [];
+            clouds = [];
             
-            // Create new elements
             createPlayer();
             createGround();
             createClouds();
             
-            // Start obstacle spawner
             obstacleInterval = setInterval(() => {
                 if (gameActive) {
                     createObstacle();
                 }
             }, 2000);
             
-            // Start game loop
             if (!runner) {
                 runner = Runner.create();
                 Runner.run(runner, engine);
             }
             
-            // Start render loop
             requestAnimationFrame(gameLoop);
         }
 
@@ -295,39 +315,37 @@
         function gameLoop() {
             if (!gameActive) return;
             
-            // Clear canvas
             ctx.clearRect(0, 0, 800, 400);
             
-            // Draw scrolling background
-            drawBackground();
+            // Draw background
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, 800, 400 - groundHeight);
             
-            // Draw clouds
             drawClouds();
+            drawGround();
+            drawObstacles();
+            drawPlayer();
             
-            // Update player position
-            if (player.position.y > 500) {
-                gameOver();
-            }
-            
-            // Move obstacles and ground
+            // Move obstacles
             obstacles.forEach(obstacle => {
-                Matter.Body.setPosition(obstacle, {
-                    x: obstacle.position.x - scrollSpeed,
-                    y: obstacle.position.y
+                Matter.Body.setPosition(obstacle.body, {
+                    x: obstacle.body.position.x - scrollSpeed,
+                    y: obstacle.body.position.y
                 });
                 
-                // Remove obstacles that are off screen
-                if (obstacle.position.x < -100) {
-                    Composite.remove(world, obstacle);
-                    obstacles = obstacles.filter(o => o.id !== obstacle.id);
+                if (obstacle.body.position.x < -100) {
+                    Composite.remove(world, obstacle.body);
+                    obstacles = obstacles.filter(o => o.body.id !== obstacle.body.id);
                 }
             });
             
-            // Move ground (for infinite scrolling)
             backgroundOffset += scrollSpeed;
             if (backgroundOffset >= 800) backgroundOffset = 0;
             
-            // Increase difficulty
+            // Check if player is on ground
+            const playerBottom = player.position.y + playerHeight/2;
+            isJumping = playerBottom < 400 - groundHeight - 5;
+            
             score++;
             document.getElementById('score').textContent = `Score: ${score}`;
             
@@ -335,28 +353,7 @@
                 scrollSpeed += 0.5;
             }
             
-            // Draw player
-            drawPlayer();
-            
-            // Continue loop
             requestAnimationFrame(gameLoop);
-        }
-
-        // Draw repeating background
-        function drawBackground() {
-            // Sky
-            ctx.fillStyle = '#87CEEB';
-            ctx.fillRect(0, 0, 800, 400 - groundHeight);
-            
-            // Ground
-            ctx.fillStyle = '#4CAF50';
-            ctx.fillRect(0, 400 - groundHeight, 800, groundHeight);
-            
-            // Ground details (for scrolling effect)
-            ctx.fillStyle = '#388E3C';
-            for (let x = -backgroundOffset % 40; x < 800; x += 40) {
-                ctx.fillRect(x, 400 - groundHeight, 20, 5);
-            }
         }
 
         // Event Listeners
@@ -365,14 +362,13 @@
         document.addEventListener('keydown', (e) => {
             if (!gameActive) return;
             
-            // Jump (Space or Up Arrow)
-            if ((e.code === 'Space' || e.key === 'ArrowUp') && player.position.y > 400 - groundHeight - playerHeight - 5) {
-                Matter.Body.applyForce(player, player.position, { x: 0, y: -0.1 });
+            if ((e.code === 'Space' || e.key === 'ArrowUp') && !isJumping) {
+                Matter.Body.setVelocity(player, { x: 0, y: -10 });
+                isJumping = true;
             }
             
-            // Slide (Down Arrow)
             if (e.key === 'ArrowDown') {
-                playerHeight = 30; // Squat
+                playerHeight = 30;
                 Matter.Body.setPosition(player, { 
                     x: player.position.x, 
                     y: 400 - groundHeight - playerHeight/2 
@@ -382,11 +378,11 @@
         
         document.addEventListener('keyup', (e) => {
             if (e.key === 'ArrowDown') {
-                playerHeight = 50; // Stand up
+                playerHeight = 50;
             }
         });
 
-        // Kollisionserkennung
+        // Collision detection
         Events.on(engine, 'collisionStart', (event) => {
             const pairs = event.pairs;
             for (let i = 0; i < pairs.length; i++) {
@@ -394,6 +390,12 @@
                 if ((pair.bodyA.label === 'player' && pair.bodyB.label === 'obstacle') || 
                     (pair.bodyB.label === 'player' && pair.bodyA.label === 'obstacle')) {
                     gameOver();
+                }
+                
+                // Check if player landed on ground
+                if ((pair.bodyA.label === 'player' && pair.bodyB.label === 'ground') || 
+                    (pair.bodyB.label === 'player' && pair.bodyA.label === 'ground')) {
+                    isJumping = false;
                 }
             }
         });
