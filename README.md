@@ -1,20 +1,26 @@
 <Willkommen>
 <html>
 <head>
-    <title>Parkour Runner - Fix</title>
+    <title>Parkour Runner - Slide & RGB</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #87CEEB;
             font-family: Arial, sans-serif;
             text-align: center;
             user-select: none;
+            animation: rgbBackground 10s infinite alternate;
+        }
+        @keyframes rgbBackground {
+            0% { background-color: #FF4136; }
+            33% { background-color: #0074D9; }
+            66% { background-color: #2ECC40; }
+            100% { background-color: #FFDC00; }
         }
         #game-container {
             position: relative;
             width: 600px;
-            height: 200px;
+            height: 250px; /* Höher für Slide-Mechanik */
             margin: 20px auto;
             background-color: #333;
             overflow: hidden;
@@ -36,6 +42,7 @@
             bottom: 20px;
             left: 50px;
             border-radius: 5px 5px 0 0;
+            transition: height 0.2s;
         }
         .obstacle {
             position: absolute;
@@ -46,10 +53,14 @@
             right: -20px;
             border-radius: 5px 5px 0 0;
         }
+        .high-obstacle {
+            height: 80px; /* Höhere Hindernisse für Slide-Mechanik */
+        }
         #score-display {
             font-size: 24px;
             margin: 10px;
-            color: #333;
+            color: white;
+            text-shadow: 1px 1px 2px black;
         }
         #controls {
             margin: 20px;
@@ -76,11 +87,20 @@
             border-radius: 10px;
             text-align: center;
             width: 80%;
+            z-index: 10;
+        }
+        #instructions {
+            margin: 10px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
         }
     </style>
 </head>
 <body>
-    <h1>Parkour Runner</h1>
+    <h1 style="color: white; text-shadow: 1px 1px 2px black;">Parkour Runner</h1>
+    <div id="instructions">
+        Leertaste = Springen | Shift = Slide unter Hindernissen
+    </div>
     <div id="score-display">Punkte: 0</div>
     <div id="controls">
         <button id="start-btn">Start</button>
@@ -109,20 +129,23 @@
         let score = 0;
         let isGameRunning = false;
         let gameSpeed = 5;
-        let gravity;
         let obstacleInterval;
         let gameLoop;
         let obstacles = [];
+        let isSliding = false;
+        let slideTimeout;
 
         // Player Properties
         const playerProps = {
             x: 50,
-            y: gameContainer.clientHeight - 70, // 70 = player height (50) + ground height (20)
+            y: gameContainer.clientHeight - 70,
             width: 30,
             height: 50,
             isJumping: false,
             jumpPower: 0,
-            gravity: 0.5
+            gravity: 0.5,
+            normalHeight: 50,
+            slidingHeight: 25
         };
 
         // Initialize player position
@@ -145,11 +168,13 @@
             document.querySelectorAll('.obstacle').forEach(obs => obs.remove());
             obstacles = [];
             
-            // Reset player position
+            // Reset player position and state
             playerProps.y = gameContainer.clientHeight - 70;
             playerProps.isJumping = false;
             playerProps.jumpPower = 0;
             player.style.bottom = '20px';
+            player.style.height = playerProps.normalHeight + 'px';
+            isSliding = false;
             
             // Start game loops
             obstacleInterval = setInterval(createObstacle, 1500);
@@ -161,6 +186,12 @@
             
             const obstacle = document.createElement('div');
             obstacle.className = 'obstacle';
+            
+            // 30% Chance für ein hohes Hindernis (nur durch Sliden vermeidbar)
+            if (Math.random() < 0.3) {
+                obstacle.classList.add('high-obstacle');
+            }
+            
             obstacle.style.right = '-20px';
             gameContainer.appendChild(obstacle);
             
@@ -168,16 +199,38 @@
                 element: obstacle,
                 x: gameContainer.clientWidth,
                 width: 20,
-                height: 40,
-                speed: gameSpeed
+                height: obstacle.classList.contains('high-obstacle') ? 80 : 40,
+                speed: gameSpeed,
+                isHigh: obstacle.classList.contains('high-obstacle')
             });
         }
 
         function jump() {
-            if (playerProps.isJumping || !isGameRunning) return;
+            if (playerProps.isJumping || !isGameRunning || isSliding) return;
             
             playerProps.isJumping = true;
             playerProps.jumpPower = 12;
+            endSlide(); // Falls während des Sprungs geslidet wird
+        }
+
+        function startSlide() {
+            if (playerProps.isJumping || !isGameRunning || isSliding) return;
+            
+            isSliding = true;
+            player.style.height = playerProps.slidingHeight + 'px';
+            player.style.bottom = (20 - (playerProps.normalHeight - playerProps.slidingHeight)) + 'px';
+            
+            // Automatisches Aufstehen nach 1 Sekunde
+            slideTimeout = setTimeout(endSlide, 1000);
+        }
+
+        function endSlide() {
+            if (!isSliding) return;
+            
+            clearTimeout(slideTimeout);
+            isSliding = false;
+            player.style.height = playerProps.normalHeight + 'px';
+            player.style.bottom = '20px';
         }
 
         function updatePlayer() {
@@ -193,7 +246,7 @@
             }
             
             // Update player position
-            player.style.bottom = (gameContainer.clientHeight - playerProps.y - playerProps.height) + 'px';
+            player.style.bottom = (gameContainer.clientHeight - playerProps.y - (isSliding ? playerProps.slidingHeight : playerProps.normalHeight)) + 'px';
         }
 
         function updateObstacles() {
@@ -227,18 +280,20 @@
             const playerLeft = playerProps.x;
             const playerRight = playerProps.x + playerProps.width;
             const playerTop = playerProps.y;
-            const playerBottom = playerProps.y + playerProps.height;
+            const playerBottom = playerProps.y + (isSliding ? playerProps.slidingHeight : playerProps.normalHeight);
             
             const obstacleLeft = obstacle.x;
             const obstacleRight = obstacle.x + obstacle.width;
             const obstacleTop = gameContainer.clientHeight - obstacle.height - 20;
             const obstacleBottom = gameContainer.clientHeight - 20;
             
+            // Kollision nur wenn nicht geslidet wird oder Hindernis zu hoch ist
             return (
                 playerRight > obstacleLeft &&
                 playerLeft < obstacleRight &&
                 playerBottom > obstacleTop &&
-                playerTop < obstacleBottom
+                playerTop < obstacleBottom &&
+                !(isSliding && !obstacle.isHigh) // Keine Kollision wenn geslidet wird und Hindernis nicht hoch ist
             );
         }
 
@@ -261,9 +316,20 @@
 
         // Event Listeners
         document.addEventListener('keydown', (e) => {
-            if ((e.code === 'Space' || e.key === 'ArrowUp') && isGameRunning) {
+            if (!isGameRunning) return;
+            
+            if ((e.code === 'Space' || e.key === 'ArrowUp') && !isSliding) {
                 e.preventDefault();
                 jump();
+            } else if (e.key === 'Shift') {
+                e.preventDefault();
+                startSlide();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift' && isSliding) {
+                endSlide();
             }
         });
 
