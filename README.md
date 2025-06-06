@@ -1,4 +1,4 @@
-<WIllkommen>
+<Willkommen>
 <html>
 <head>
     <title>Parkour Runner - Fix</title>
@@ -6,7 +6,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #87CEEB; /* Himmelblau */
+            background-color: #87CEEB;
             font-family: Arial, sans-serif;
             text-align: center;
             user-select: none;
@@ -26,23 +26,22 @@
             bottom: 0;
             width: 100%;
             height: 20px;
-            background-color: #2E8B57; /* Grün */
+            background-color: #2E8B57;
         }
         #player {
             position: absolute;
             width: 30px;
             height: 50px;
-            background-color: #FF6347; /* Tomatenrot */
-            bottom: 20px; /* Auf dem Boden */
+            background-color: #FF6347;
+            bottom: 20px;
             left: 50px;
             border-radius: 5px 5px 0 0;
-            transition: bottom 0.1s linear;
         }
         .obstacle {
             position: absolute;
             width: 20px;
             height: 40px;
-            background-color: #4682B4; /* Stahlblau */
+            background-color: #4682B4;
             bottom: 20px;
             right: -20px;
             border-radius: 5px 5px 0 0;
@@ -65,9 +64,6 @@
             cursor: pointer;
             margin: 0 10px;
         }
-        button:hover {
-            background-color: #45a049;
-        }
         #game-over {
             display: none;
             position: absolute;
@@ -88,7 +84,6 @@
     <div id="score-display">Punkte: 0</div>
     <div id="controls">
         <button id="start-btn">Start</button>
-        <button id="restart-btn" style="display:none;">Neustart</button>
     </div>
     <div id="game-container">
         <div id="ground"></div>
@@ -96,7 +91,7 @@
         <div id="game-over">
             <h2>Game Over!</h2>
             <p id="final-score">Punkte: 0</p>
-            <button id="restart-game-btn">Nochmal spielen</button>
+            <button id="restart-btn">Nochmal spielen</button>
         </div>
     </div>
 
@@ -106,30 +101,28 @@
         const player = document.getElementById('player');
         const scoreDisplay = document.getElementById('score-display');
         const startBtn = document.getElementById('start-btn');
-        const restartBtn = document.getElementById('restart-btn');
         const gameOverScreen = document.getElementById('game-over');
         const finalScore = document.getElementById('final-score');
-        const restartGameBtn = document.getElementById('restart-game-btn');
+        const restartBtn = document.getElementById('restart-btn');
 
         // Game Variables
         let score = 0;
-        let isJumping = false;
         let isGameRunning = false;
         let gameSpeed = 5;
         let gravity;
         let obstacleInterval;
-        let animationFrame;
+        let gameLoop;
         let obstacles = [];
 
         // Player Properties
         const playerProps = {
-            width: 30,
-            height: 50,
             x: 50,
             y: gameContainer.clientHeight - 70, // 70 = player height (50) + ground height (20)
-            jumpHeight: 100,
-            jumpSpeed: 5,
-            isJumping: false
+            width: 30,
+            height: 50,
+            isJumping: false,
+            jumpPower: 0,
+            gravity: 0.5
         };
 
         // Initialize player position
@@ -147,16 +140,20 @@
             scoreDisplay.textContent = 'Punkte: 0';
             gameOverScreen.style.display = 'none';
             startBtn.style.display = 'none';
-            restartBtn.style.display = 'inline-block';
             
             // Clear existing obstacles
             document.querySelectorAll('.obstacle').forEach(obs => obs.remove());
             obstacles = [];
             
+            // Reset player position
+            playerProps.y = gameContainer.clientHeight - 70;
+            playerProps.isJumping = false;
+            playerProps.jumpPower = 0;
+            player.style.bottom = '20px';
+            
             // Start game loops
             obstacleInterval = setInterval(createObstacle, 1500);
-            gravity = setInterval(applyGravity, 20);
-            animationFrame = requestAnimationFrame(updateGame);
+            gameLoop = setInterval(updateGame, 20);
         }
 
         function createObstacle() {
@@ -167,60 +164,48 @@
             obstacle.style.right = '-20px';
             gameContainer.appendChild(obstacle);
             
-            const obstacleObj = {
+            obstacles.push({
                 element: obstacle,
                 x: gameContainer.clientWidth,
                 width: 20,
                 height: 40,
                 speed: gameSpeed
-            };
-            
-            obstacles.push(obstacleObj);
-        }
-
-        function applyGravity() {
-            if (!isGameRunning) return;
-            
-            const currentBottom = parseInt(player.style.bottom || '20');
-            const groundLevel = 20;
-            
-            if (!playerProps.isJumping && currentBottom > groundLevel) {
-                player.style.bottom = (currentBottom - 5) + 'px';
-            } else if (currentBottom < groundLevel) {
-                player.style.bottom = groundLevel + 'px';
-            }
+            });
         }
 
         function jump() {
             if (playerProps.isJumping || !isGameRunning) return;
             
             playerProps.isJumping = true;
-            let jumpCount = 0;
-            const maxJump = playerProps.jumpHeight;
-            
-            const jumpInterval = setInterval(() => {
-                jumpCount += playerProps.jumpSpeed;
-                player.style.bottom = (20 + jumpCount) + 'px';
-                
-                if (jumpCount >= maxJump) {
-                    clearInterval(jumpInterval);
-                    playerProps.isJumping = false;
-                }
-            }, 20);
+            playerProps.jumpPower = 12;
         }
 
-        function updateGame() {
-            if (!isGameRunning) return;
+        function updatePlayer() {
+            // Apply gravity
+            playerProps.y -= playerProps.jumpPower;
+            playerProps.jumpPower -= playerProps.gravity;
             
-            // Move obstacles
-            obstacles.forEach((obstacle, index) => {
+            // Ground collision
+            if (playerProps.y >= gameContainer.clientHeight - 70) {
+                playerProps.y = gameContainer.clientHeight - 70;
+                playerProps.isJumping = false;
+                playerProps.jumpPower = 0;
+            }
+            
+            // Update player position
+            player.style.bottom = (gameContainer.clientHeight - playerProps.y - playerProps.height) + 'px';
+        }
+
+        function updateObstacles() {
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
                 obstacle.x -= obstacle.speed;
                 obstacle.element.style.right = (gameContainer.clientWidth - obstacle.x) + 'px';
                 
                 // Remove obstacles that are off screen
                 if (obstacle.x + obstacle.width < 0) {
                     gameContainer.removeChild(obstacle.element);
-                    obstacles.splice(index, 1);
+                    obstacles.splice(i, 1);
                     score++;
                     scoreDisplay.textContent = 'Punkte: ' + score;
                     
@@ -231,51 +216,52 @@
                 }
                 
                 // Check collision
-                if (checkCollision(player, obstacle)) {
+                if (checkCollision(obstacle)) {
                     endGame();
+                    return;
                 }
-            });
-            
-            animationFrame = requestAnimationFrame(updateGame);
+            }
         }
 
-        function checkCollision(player, obstacle) {
-            const playerRect = {
-                x: playerProps.x,
-                y: gameContainer.clientHeight - (parseInt(player.style.bottom) + playerProps.height),
-                width: playerProps.width,
-                height: playerProps.height
-            };
+        function checkCollision(obstacle) {
+            const playerLeft = playerProps.x;
+            const playerRight = playerProps.x + playerProps.width;
+            const playerTop = playerProps.y;
+            const playerBottom = playerProps.y + playerProps.height;
             
-            const obstacleRect = {
-                x: obstacle.x,
-                y: gameContainer.clientHeight - (20 + obstacle.height),
-                width: obstacle.width,
-                height: obstacle.height
-            };
+            const obstacleLeft = obstacle.x;
+            const obstacleRight = obstacle.x + obstacle.width;
+            const obstacleTop = gameContainer.clientHeight - obstacle.height - 20;
+            const obstacleBottom = gameContainer.clientHeight - 20;
             
             return (
-                playerRect.x < obstacleRect.x + obstacleRect.width &&
-                playerRect.x + playerRect.width > obstacleRect.x &&
-                playerRect.y < obstacleRect.y + obstacleRect.height &&
-                playerRect.y + playerRect.height > obstacleRect.y
+                playerRight > obstacleLeft &&
+                playerLeft < obstacleRight &&
+                playerBottom > obstacleTop &&
+                playerTop < obstacleBottom
             );
+        }
+
+        function updateGame() {
+            if (!isGameRunning) return;
+            
+            updatePlayer();
+            updateObstacles();
         }
 
         function endGame() {
             isGameRunning = false;
-            
             clearInterval(obstacleInterval);
-            clearInterval(gravity);
-            cancelAnimationFrame(animationFrame);
+            clearInterval(gameLoop);
             
             finalScore.textContent = 'Punkte: ' + score;
             gameOverScreen.style.display = 'block';
+            startBtn.style.display = 'inline-block';
         }
 
         // Event Listeners
         document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.key === 'ArrowUp') {
+            if ((e.code === 'Space' || e.key === 'ArrowUp') && isGameRunning) {
                 e.preventDefault();
                 jump();
             }
@@ -283,7 +269,6 @@
 
         startBtn.addEventListener('click', startGame);
         restartBtn.addEventListener('click', startGame);
-        restartGameBtn.addEventListener('click', startGame);
     </script>
 </body>
 </html>
